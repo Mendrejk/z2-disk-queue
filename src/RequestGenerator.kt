@@ -3,8 +3,9 @@ import kotlin.random.Random
 fun generateRequests(howMany: Int, maxAppearanceTime: Int, diskSize: Int, realTimePercentage: Double, maxExpirationTime: Int): List<Request> =
         List<Request>(howMany) {
             Request(
-                    adress = (0..diskSize).random(),
+                    // until - range exclusive, .. - range inclusive
+                    adress = (0 until diskSize).random(),
                     appearanceTime = (0..maxAppearanceTime).random(),
-                    expirationTime = if (Random.nextDouble() <= realTimePercentage) (0..maxExpirationTime).random() else null
+                    expirationTime = if (Random.nextDouble() <= realTimePercentage) (1..maxExpirationTime).random() else null
             )
         }
