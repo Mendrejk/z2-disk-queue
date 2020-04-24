@@ -9,4 +9,5 @@ fun main() {
     println(firstComeFirstServe(diskSize, requests.sortedBy { it.appearanceTime }.toMutableList()))
     println(shortestSeekTimeFirst(diskSize, requests.sortedBy { it.appearanceTime }.toMutableList()))
     println(cScan(diskSize, requests.sortedBy { it.appearanceTime }.toMutableList()))
+    println(scan(diskSize, requests.sortedBy { it.appearanceTime }.toMutableList()))
 }

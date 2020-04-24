@@ -6,7 +6,6 @@ fun firstComeFirstServe(diskSize: Int, incomingRequests: MutableList<Request>): 
     val ongoingRequests: ArrayDeque<Request> = ArrayDeque()
     var elapsedTime: Int = 0
     var headLocation: Int = 0
-    var totalHeadPath: Int = 0
     var goingForward: Boolean = true
 
     while (incomingRequests.isNotEmpty() || ongoingRequests.isNotEmpty()) {
@@ -26,17 +25,15 @@ fun firstComeFirstServe(diskSize: Int, incomingRequests: MutableList<Request>): 
         }
 
         headLocation += headLocationChange
-        totalHeadPath++
         elapsedTime++
     }
-    return totalHeadPath
+    return elapsedTime
 }
 
 fun shortestSeekTimeFirst(diskSize: Int, incomingRequests: MutableList<Request>): Int {
     val ongoingRequests: ArrayDeque<Request> = ArrayDeque()
     var elapsedTime: Int = 0
     var headLocation: Int = 0
-    var totalHeadPath: Int = 0
     var goingForward: Boolean = true
 
     while (incomingRequests.isNotEmpty() || ongoingRequests.isNotEmpty()) {
@@ -60,17 +57,15 @@ fun shortestSeekTimeFirst(diskSize: Int, incomingRequests: MutableList<Request>)
         }
 
         headLocation += headLocationChange
-        totalHeadPath++
         elapsedTime++
     }
-    return totalHeadPath
+    return elapsedTime
 }
 
 fun cScan(diskSize: Int, incomingRequests: MutableList<Request>): Int {
     var ongoingRequests: ArrayDeque<Request> = ArrayDeque()
     var elapsedTime: Int = 0
     var headLocation: Int = 0
-    var totalHeadPath: Int = 0
 
     while (incomingRequests.isNotEmpty() || ongoingRequests.isNotEmpty()) {
         val ongoingRequestsPreviousSize = ongoingRequests.size
@@ -82,7 +77,7 @@ fun cScan(diskSize: Int, incomingRequests: MutableList<Request>): Int {
             // but I don't think it's good either
             // here, I don't know if it's beeter for sortedCScan to return new ArrayDeque and make ongoingRequests var
             // or to make (sortCScan) change the elements of ongoingRequests and keep them as val
-            ongoingRequests = sortedCScan(ongoingRequests, headLocation)
+            ongoingRequests = sortedScan(ongoingRequests, headLocation)
         }
         handleRequests(ongoingRequests, headLocation)
 
@@ -90,10 +85,36 @@ fun cScan(diskSize: Int, incomingRequests: MutableList<Request>): Int {
         headLocation = if (headLocation < diskSize) headLocation + 1 else 0
 
         // TODO might want to put those in if as well
-        totalHeadPath++
         elapsedTime++
     }
-    return totalHeadPath
+    return elapsedTime
+}
+
+fun scan(diskSize: Int, incomingRequests: MutableList<Request>): Int {
+    var ongoingRequests: ArrayDeque<Request> = ArrayDeque()
+    var elapsedTime: Int = 0
+    var headLocation: Int = 0
+    var goingForward: Boolean = true
+
+    while (incomingRequests.isNotEmpty() || ongoingRequests.isNotEmpty()) {
+        val ongoingRequestsPreviousSize = ongoingRequests.size
+        ongoingRequests.addAll(retrievePendingRequests(incomingRequests, elapsedTime))
+        if (ongoingRequests.size > ongoingRequestsPreviousSize) {
+            ongoingRequests = sortedScan(ongoingRequests, headLocation, goingForward)
+        }
+        handleRequests(ongoingRequests, headLocation)
+
+        goingForward = findHeadDirectionChange(headLocation, goingForward, diskSize)
+
+        val headLocationChange: Int = when {
+            goingForward -> 1
+            else -> -1
+        }
+
+        headLocation += headLocationChange
+        elapsedTime++
+    }
+    return elapsedTime
 }
 
 fun retrievePendingRequests(incomingRequests: MutableList<Request>, elaspedTime: Int): List<Request> {
@@ -113,13 +134,12 @@ fun handleRequests(ongoingRequests: ArrayDeque<Request>, headLocation: Int): Boo
     return isRemoved
 }
 
-fun findHeadDirectionChange(headLocation: Int, goingForward: Boolean, diskSize: Int): Boolean {
-    return when (headLocation) {
+fun findHeadDirectionChange(headLocation: Int, goingForward: Boolean, diskSize: Int): Boolean =
+    when (headLocation) {
         0 -> true
         diskSize - 1 -> false
         else -> goingForward
     }
-}
 
 fun findHeadDistance(headLocation: Int, request: Request): Int = abs(request.adress - headLocation)
 
@@ -130,9 +150,17 @@ fun findHeadDistanceCScan(headLocation: Int, request: Request, diskSize: Int): I
             else -> diskSize - headLocation + request.adress
         }
 
-fun sortedCScan(ongoingRequests: ArrayDeque<Request>, headLocation: Int): ArrayDeque<Request> =
-        ArrayDeque(
-            ongoingRequests.groupByTo(sortedMapOf()) { it.adress >= headLocation }
-                    .values
-                    .map { x -> x.sortedBy { it.adress } }
-                    .reduce { before, ahead -> ahead + before })
+fun sortedScan(ongoingRequests: ArrayDeque<Request>, headLocation: Int, goingForward: Boolean = true): ArrayDeque<Request> =
+        if (goingForward) {
+            ArrayDeque(
+                    ongoingRequests.groupByTo(sortedMapOf()) { it.adress >= headLocation }
+                            .values
+                            .map { x -> x.sortedBy { it.adress } }
+                            .reduce { before, ahead -> ahead + before })
+        } else {
+            ArrayDeque(
+                    ongoingRequests.groupByTo(sortedMapOf()) { it.adress >= headLocation }
+                            .values
+                            .map { x -> x.sortedByDescending { it.adress } }
+                            .reduce { before, ahead -> before + ahead })
+        }
