@@ -6,6 +6,6 @@ fun generateRequests(howMany: Int, maxAppearanceTime: Int, diskSize: Int, realTi
                     // until - range exclusive, .. - range inclusive
                     adress = (0 until diskSize).random(),
                     appearanceTime = (0..maxAppearanceTime).random(),
-                    expirationTime = if (Random.nextDouble() <= realTimePercentage) (1..maxExpirationTime).random() else null
+                    expiresIn = if (Random.nextDouble() <= realTimePercentage) (1..maxExpirationTime).random() else null
             )
         }
