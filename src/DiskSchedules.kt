@@ -117,6 +117,47 @@ fun scan(diskSize: Int, incomingRequests: MutableList<Request>): Int {
     return elapsedTime
 }
 
+fun earliestDeadlineFirst(diskSize: Int, incomingRequests: MutableList<Request>): Pair<Int, Double> {
+    val ongoingRequests: ArrayDeque<Request> = ArrayDeque()
+    var elapsedTime: Int = 0
+    var headLocation: Int = 0
+    var goingForward: Boolean = true
+    var failedRealTimeTaskCount: Int = 0
+    // this might be a suboptimal way of finding real-time task count, but it's the most elegant I believe
+    val realTimeTaskCount: Int = incomingRequests.filter { it.expirationTime != null }.count()
+
+    while (incomingRequests.isNotEmpty() || ongoingRequests.isNotEmpty()) {
+        // had to do that to ensure resorting if a real-time request was added
+        val pendingRequests = retrievePendingRequests(incomingRequests, elapsedTime)
+        val hasNewRealTimeRequests: Boolean = pendingRequests.filter { it.expirationTime != null }.count() > 0
+        ongoingRequests.addAll(pendingRequests)
+        // sort if a request was handled OR there is a new real-time task (will lead to real-time task expropriation)
+        if (handleRequests(ongoingRequests, headLocation) || hasNewRealTimeRequests) {
+            // sorts by expirationTime first, and then by distance from head
+            ongoingRequests.sortWith(compareBy<Request> { it.expirationTime == null }.thenBy { it.expirationTime }.thenBy { findHeadDistance(headLocation, it) })
+        }
+
+        // get rid of expired tasks
+        // againg with those temp variables...
+        val oldOngoingRequestsSize = ongoingRequests.size
+        ongoingRequests.removeAll { it.isExpired(elapsedTime) }
+        failedRealTimeTaskCount += oldOngoingRequestsSize - ongoingRequests.size
+
+        goingForward = findHeadDirectionChange(headLocation, goingForward, diskSize)
+
+        val headLocationChange: Int = when {
+            ongoingRequests.isNotEmpty() && ongoingRequests[0].adress < headLocation -> -1
+            ongoingRequests.isNotEmpty() && ongoingRequests[0].adress > headLocation -> 1
+            goingForward -> 1
+            else -> -1
+        }
+
+        headLocation += headLocationChange
+        elapsedTime++
+    }
+    return Pair<Int, Double> (elapsedTime, failedRealTimeTaskCount.toDouble() / realTimeTaskCount)
+}
+
 fun retrievePendingRequests(incomingRequests: MutableList<Request>, elaspedTime: Int): List<Request> {
     val pendingRequests: MutableList<Request> = mutableListOf()
     while (incomingRequests.isNotEmpty() && incomingRequests[0].isAppearanceTime(elaspedTime)) {
