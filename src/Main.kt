@@ -11,4 +11,5 @@ fun main() {
     println(cScan(diskSize, requests.sortedBy { it.appearanceTime }.toMutableList()))
     println(scan(diskSize, requests.sortedBy { it.appearanceTime }.toMutableList()))
     println(earliestDeadlineFirst(diskSize, requests.sortedBy { it.appearanceTime }.toMutableList()))
+    println(feasibleDeadlineScan(diskSize, requests.sortedBy { it.appearanceTime }.toMutableList()))
 }

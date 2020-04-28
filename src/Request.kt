@@ -1,3 +1,5 @@
+import kotlin.math.abs
+
 class Request(
     val adress: Int,
     val appearanceTime: Int,
@@ -13,4 +15,11 @@ class Request(
     fun isExpired(timeElapsed: Int): Boolean = expirationTime == timeElapsed
 
     fun isAppearanceTime(timeElapsed: Int): Boolean = appearanceTime == timeElapsed
+
+    fun isFeasible(headLocation: Int, timeElapsed: Int):Boolean = if (expirationTime != null) {
+        abs(adress - headLocation) <= abs(expirationTime - timeElapsed)
+    } else {
+        false
+    }
+
 }

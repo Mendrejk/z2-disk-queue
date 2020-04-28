@@ -158,6 +158,66 @@ fun earliestDeadlineFirst(diskSize: Int, incomingRequests: MutableList<Request>)
     return Pair<Int, Double> (elapsedTime, failedRealTimeTaskCount.toDouble() / realTimeTaskCount)
 }
 
+fun feasibleDeadlineScan(diskSize: Int, incomingRequests: MutableList<Request>): Pair<Int, Double> {
+    var ongoingRequests: ArrayDeque<Request> = ArrayDeque()
+    var elapsedTime: Int = 0
+    var headLocation: Int = 0
+    var goingForward: Boolean = true
+    var failedRealTimeTaskCount: Int = 0
+    val realTimeTaskCount: Int = incomingRequests.filter { it.expirationTime != null }.count()
+    var currentRequest: Request? = null
+    // needs to be initialised here because sorting uses it to determine order
+    var headLocationChange: Int = 0
+
+    while (incomingRequests.isNotEmpty() || ongoingRequests.isNotEmpty()) {
+        val ongoingRequestsPreviousSize = ongoingRequests.size
+        ongoingRequests.addAll(retrievePendingRequests(incomingRequests, elapsedTime))
+
+        if (ongoingRequests.size > ongoingRequestsPreviousSize) {
+            if (currentRequest == null) {
+                ongoingRequests = sortedScan(ongoingRequests, headLocation, goingForward)
+            } else {
+                when (headLocationChange) {
+                    1 -> ongoingRequests = sortedScan(ongoingRequests, headLocation, true)
+                    -1 -> ongoingRequests = sortedScan(ongoingRequests, headLocation, false)
+                }
+            }
+        }
+        handleRequests(ongoingRequests, headLocation)
+        if (currentRequest != null && currentRequest.adress == headLocation) {
+            currentRequest = null
+            // sorting again, as the sort above only triggers when a new Request is added
+            //ongoingRequests = sortedScan(ongoingRequests, headLocation, goingForward)
+        }
+
+        // sets current Request to real-time request that expires soonest
+        if (currentRequest == null && ongoingRequests.isNotEmpty()) {
+            currentRequest = getFirstFeasibleRequest(ongoingRequests, headLocation, elapsedTime)
+        }
+
+        val oldOngoingRequestsSize = ongoingRequests.size
+        ongoingRequests.removeAll { it.isExpired(elapsedTime) }
+        failedRealTimeTaskCount += oldOngoingRequestsSize - ongoingRequests.size
+
+        if (currentRequest != null && currentRequest.isExpired(elapsedTime)) {
+            currentRequest = null
+        }
+
+        goingForward = findHeadDirectionChange(headLocation, goingForward, diskSize)
+
+        headLocationChange = when {
+            currentRequest != null && currentRequest.adress < headLocation -> -1
+            currentRequest != null && currentRequest.adress > headLocation -> 1
+            goingForward -> 1
+            else -> -1
+        }
+
+        headLocation += headLocationChange
+        elapsedTime++
+    }
+    return Pair<Int, Double> (elapsedTime, failedRealTimeTaskCount.toDouble() / realTimeTaskCount)
+}
+
 fun retrievePendingRequests(incomingRequests: MutableList<Request>, elaspedTime: Int): List<Request> {
     val pendingRequests: MutableList<Request> = mutableListOf()
     while (incomingRequests.isNotEmpty() && incomingRequests[0].isAppearanceTime(elaspedTime)) {
@@ -205,3 +265,19 @@ fun sortedScan(ongoingRequests: ArrayDeque<Request>, headLocation: Int, goingFor
                             .map { x -> x.sortedByDescending { it.adress } }
                             .reduce { before, ahead -> before + ahead })
         }
+
+fun getFirstFeasibleRequest(ongoingRequests: ArrayDeque<Request>, headLocation: Int, elaspedTime: Int): Request? {
+    val realTimeRequests: MutableList<Request> = ongoingRequests.filter { it.expirationTime != null }.sortedBy { it.expirationTime }.toMutableList()
+    while (realTimeRequests.isNotEmpty()) {
+        // the request is removed no matter the outcome, but it's returned only if it's feasible
+        // if it's not feasible then it should be removed anyways (it's always the soonest expiring request, so there are
+        // no future prediction problems when it comes to calculating it's feasibleness)
+        val consideredRequest: Request = realTimeRequests.first()
+        ongoingRequests.remove(consideredRequest)
+        realTimeRequests.remove(consideredRequest)
+        if (consideredRequest.isFeasible(headLocation, elaspedTime)) {
+            return consideredRequest
+        }
+    }
+    return null
+}
