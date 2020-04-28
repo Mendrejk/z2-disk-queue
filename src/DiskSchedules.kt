@@ -1,5 +1,6 @@
 import kotlin.collections.ArrayDeque
 import kotlin.math.abs
+import kotlin.test.fail
 
 fun firstComeFirstServe(diskSize: Int, incomingRequests: MutableList<Request>): Int {
     // ArrayDeque is part of kotlin's experimentalStdLibApi, it's use has to be enabled in build settings
@@ -186,13 +187,15 @@ fun feasibleDeadlineScan(diskSize: Int, incomingRequests: MutableList<Request>):
         handleRequests(ongoingRequests, headLocation)
         if (currentRequest != null && currentRequest.adress == headLocation) {
             currentRequest = null
-            // sorting again, as the sort above only triggers when a new Request is added
-            //ongoingRequests = sortedScan(ongoingRequests, headLocation, goingForward)
         }
 
         // sets current Request to real-time request that expires soonest
         if (currentRequest == null && ongoingRequests.isNotEmpty()) {
+            val oldOngoingRequestsSize = ongoingRequests.size
             currentRequest = getFirstFeasibleRequest(ongoingRequests, headLocation, elapsedTime)
+            // -1 so that currentRequest is not counted
+            if (currentRequest != null) failedRealTimeTaskCount += oldOngoingRequestsSize - ongoingRequests.size - 1
+            else failedRealTimeTaskCount += oldOngoingRequestsSize - ongoingRequests.size
         }
 
         val oldOngoingRequestsSize = ongoingRequests.size
